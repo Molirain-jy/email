@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邮件发送系统</title>
+    
+    <!-- Quill.js CSS -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .username {
+            color: #555;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .logout-btn:hover {
+            background: #d32f2f;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            margin-bottom: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .editor-container {
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .editor-container:focus-within {
+            border-color: #667eea;
+        }
+
+        #editor {
+            min-height: 300px;
+        }
+
+        .format-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .format-btn {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .format-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .format-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .send-btn {
+            padding: 14px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .success-message,
+        .error-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .success-message.show,
+        .error-message.show {
+            display: block;
+        }
+
+        .history-item {
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .history-item .time {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .history-item .subject {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .history-item .recipients {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .logo {
+                font-size: 20px;
+            }
+
+            .container {
+                padding: 0 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            📧 邮件发送系统
+        </div>
+        <div class="user-info">
+            <span class="username" id="usernameDisplay"></span>
+            <button class="logout-btn" onclick="logout()">退出</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2 class="card-title">✉️ 发送邮件</h2>
+
+            <div class="success-message" id="successMessage"></div>
+            <div class="error-message" id="errorMessage"></div>
+
+            <form id="emailForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="from">发件人 *</label>
+                        <input 
+                            type="email" 
+                            id="from" 
+                            required 
+                            placeholder="noreply@yourdomain.com"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="to">收件人 *</label>
+                        <input 
+                            type="text" 
+                            id="to" 
+                            required 
+                            placeholder="user@example.com（多个用逗号分隔）"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cc">抄送（CC）</label>
+                        <input 
+                            type="text" 
+                            id="cc" 
+                            placeholder="可选，多个用逗号分隔"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="bcc">密送（BCC）</label>
+                        <input 
+                            type="text" 
+                            id="bcc" 
+                            placeholder="可选，多个用逗号分隔"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="subject">主题 *</label>
+                    <input 
+                        type="text" 
+                        id="subject" 
+                        required 
+                        placeholder="请输入邮件主题"
+                    >
+                </div>
+
+                <div class="form-group full-width">
+                    <label>邮件内容 *</label>
+                    <div class="format-buttons">
+                        <button type="button" class="format-btn" onclick="toggleFormat('text')">纯文本</button>
+                        <button type="button" class="format-btn active" onclick="toggleFormat('html')">富文本</button>
+                    </div>
+                    
+                    <div id="textEditor" style="display: none;">
+                        <textarea id="textContent" placeholder="请输入邮件内容"></textarea>
+                    </div>
+                    
+                    <div id="htmlEditor" class="editor-container">
+                        <div id="editor"></div>
+                    </div>
+                </div>
+
+                <button type="submit" class="send-btn" id="sendBtn">
+                    📤 发送邮件
+                </button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2 class="card-title">📋 发送历史</h2>
+            <div id="historyList">
+                <p style="color: #888; text-align: center;">暂无发送记录</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quill.js -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+    <script>
+        // 检查登录状态
+        const token = localStorage.getItem('auth_token');
+        const username = localStorage.getItem('username');
+
+        if (!token) {
+            window.location.href = '/login';
+        }
+
+        // 显示用户名
+        document.getElementById('usernameDisplay').textContent = username || '用户';
+
+        // 初始化 Quill 编辑器
+        const quill = new Quill('#editor', {
+            theme: 'snow',
+            placeholder: '请输入邮件内容...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    ['blockquote', 'code-block'],
+                    [{ 'header': 1 }, { 'header': 2 }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    ['link'],
+                    ['clean']
+                ]
+            }
+        });
+
+        // 格式切换
+        let isHtmlMode = true;
+
+        function toggleFormat(mode) {
+            const textEditor = document.getElementById('textEditor');
+            const htmlEditor = document.getElementById('htmlEditor');
+            const buttons = document.querySelectorAll('.format-btn');
+
+            buttons.forEach(btn => btn.classList.remove('active'));
+
+            if (mode === 'text') {
+                isHtmlMode = false;
+                textEditor.style.display = 'block';
+                htmlEditor.style.display = 'none';
+                buttons[0].classList.add('active');
+            } else {
+                isHtmlMode = true;
+                textEditor.style.display = 'none';
+                htmlEditor.style.display = 'block';
+                buttons[1].classList.add('active');
+            }
+        }
+
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('username');
+            sessionStorage.removeItem('auth_token');
+            window.location.href = '/login';
+        }
+
+        // 显示消息
+        function showMessage(type, message) {
+            const element = document.getElementById(type === 'success' ? 'successMessage' : 'errorMessage');
+            element.textContent = message;
+            element.classList.add('show');
+            
+            setTimeout(() => {
+                element.classList.remove('show');
+            }, 5000);
+        }
+
+        // 解析邮箱列表
+        function parseEmailList(str) {
+            if (!str || !str.trim()) return null;
+            return str.split(',').map(e => e.trim()).filter(e => e);
+        }
+
+        // 发送邮件
+        document.getElementById('emailForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.textContent = '发送中...';
+
+            const from = document.getElementById('from').value.trim();
+            const to = parseEmailList(document.getElementById('to').value);
+            const cc = parseEmailList(document.getElementById('cc').value);
+            const bcc = parseEmailList(document.getElementById('bcc').value);
+            const subject = document.getElementById('subject').value.trim();
+
+            let text = null;
+            let html = null;
+
+            if (isHtmlMode) {
+                html = quill.root.innerHTML;
+                text = quill.getText();
+            } else {
+                text = document.getElementById('textContent').value.trim();
+            }
+
+            try {
+                const response = await fetch('/api/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        from,
+                        to: to.length === 1 ? to[0] : to,
+                        cc: cc && cc.length > 0 ? cc : undefined,
+                        bcc: bcc && bcc.length > 0 ? bcc : undefined,
+                        subject,
+                        text,
+                        html
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('success', '✅ 邮件发送成功！');
+                    
+                    // 添加到历史记录
+                    addToHistory({
+                        from,
+                        to: to.join(', '),
+                        subject,
+                        time: new Date().toLocaleString('zh-CN')
+                    });
+
+                    // 重置表单
+                    document.getElementById('emailForm').reset();
+                    quill.setText('');
+                } else {
+                    if (response.status === 401) {
+                        showMessage('error', '登录已过期，请重新登录');
+                        setTimeout(() => logout(), 2000);
+                    } else {
+                        showMessage('error', '❌ ' + (data.error || '发送失败'));
+                    }
+                }
+            } catch (error) {
+                showMessage('error', '❌ 网络错误，请稍后重试');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '📤 发送邮件';
+            }
+        });
+
+        // 添加到历史记录
+        function addToHistory(item) {
+            let history = JSON.parse(localStorage.getItem('email_history') || '[]');
+            history.unshift(item);
+            history = history.slice(0, 10); // 只保留最近10条
+            localStorage.setItem('email_history', JSON.stringify(history));
+            loadHistory();
+        }
+
+        // 加载历史记录
+        function loadHistory() {
+            const history = JSON.parse(localStorage.getItem('email_history') || '[]');
+            const historyList = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                historyList.innerHTML = '<p style="color: #888; text-align: center;">暂无发送记录</p>';
+                return;
+            }
+
+            historyList.innerHTML = history.map(item => `
+                <div class="history-item">
+                    <div class="time">${item.time}</div>
+                    <div class="subject">${item.subject}</div>
+                    <div class="recipients">发送至：${item.to}</div>
+                </div>
+            `).join('');
+        }
+
+        // 页面加载时加载历史记录
+        loadHistory();
+    </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+### 测试文件 - 使用 REST Client 扩展
+### 将 {{worker_url}} 替换为你的 Worker URL
+
+@worker_url = https://your-worker.workers.dev
+
+### 1. 发送简单的纯文本邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "from": "noreply@yourdomain.com",
+  "to": "recipient@example.com",
+  "subject": "测试邮件",
+  "text": "这是一封测试邮件"
+}
+
+### 2. 发送带名称的邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "from": {
+    "name": "测试发件人",
+    "email": "noreply@yourdomain.com"
+  },
+  "to": {
+    "name": "收件人名称",
+    "email": "recipient@example.com"
+  },
+  "subject": "欢迎加入",
+  "text": "欢迎您加入我们的平台！"
+}
+
+### 3. 发送 HTML 邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "from": "noreply@yourdomain.com",
+  "to": "recipient@example.com",
+  "subject": "HTML 格式邮件",
+  "html": "<h1>欢迎</h1><p>这是一封 <strong>HTML</strong> 邮件</p>",
+  "text": "欢迎 - 这是一封 HTML 邮件的纯文本版本"
+}
+
+### 4. 发送到多个收件人
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "from": "noreply@yourdomain.com",
+  "to": [
+    "recipient1@example.com",
+    "recipient2@example.com"
+  ],
+  "subject": "批量通知",
+  "text": "这是一条批量通知消息"
+}
+
+### 5. 测试错误情况 - 缺少必需字段
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "from": "noreply@yourdomain.com",
+  "subject": "缺少收件人"
+}
+
+### 6. 测试错误情况 - GET 请求
+GET {{worker_url}}

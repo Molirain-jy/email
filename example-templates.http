@@ -1,0 +1,142 @@
+### 使用模板发送邮件的示例
+
+@worker_url = https://your-worker.workers.dev
+
+### 1. 发送欢迎邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "welcome",
+  "templateData": {
+    "userName": "张三",
+    "activationLink": "https://example.com/activate?token=abc123"
+  },
+  "from": "noreply@yourdomain.com",
+  "to": "user@example.com"
+}
+
+### 2. 发送验证码邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "verificationCode",
+  "templateData": {
+    "code": "123456",
+    "expiryMinutes": 10
+  },
+  "from": "noreply@yourdomain.com",
+  "to": "user@example.com"
+}
+
+### 3. 发送密码重置邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "passwordReset",
+  "templateData": {
+    "userName": "李四",
+    "resetLink": "https://example.com/reset-password?token=xyz789",
+    "expiryHours": 1
+  },
+  "from": "security@yourdomain.com",
+  "to": "user@example.com"
+}
+
+### 4. 发送订单确认邮件
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "orderConfirmation",
+  "templateData": {
+    "orderNumber": "ORD-2025-001234",
+    "orderDate": "2025-11-03 16:30:00",
+    "orderTotal": 299.00,
+    "items": [
+      {
+        "name": "商品A",
+        "quantity": 1,
+        "price": 199.00
+      },
+      {
+        "name": "商品B",
+        "quantity": 2,
+        "price": 50.00
+      }
+    ],
+    "orderUrl": "https://example.com/orders/ORD-2025-001234"
+  },
+  "from": "orders@yourdomain.com",
+  "to": "customer@example.com"
+}
+
+### 5. 发送信息通知（info 类型）
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "notification",
+  "templateData": {
+    "title": "账号信息更新",
+    "message": "您的账号信息已成功更新。如果这不是您本人的操作，请立即联系客服。",
+    "type": "info",
+    "actionText": "查看账号",
+    "actionUrl": "https://example.com/account"
+  },
+  "from": "noreply@yourdomain.com",
+  "to": "user@example.com"
+}
+
+### 6. 发送成功通知
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "notification",
+  "templateData": {
+    "title": "支付成功",
+    "message": "您的支付已成功处理。订单将在 24 小时内发货。",
+    "type": "success",
+    "actionText": "查看订单",
+    "actionUrl": "https://example.com/orders"
+  },
+  "from": "noreply@yourdomain.com",
+  "to": "customer@example.com"
+}
+
+### 7. 发送警告通知
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "notification",
+  "templateData": {
+    "title": "账号安全警告",
+    "message": "我们检测到您的账号在异常地点登录。如果这是您本人的操作，请忽略此消息。",
+    "type": "warning",
+    "actionText": "确认登录",
+    "actionUrl": "https://example.com/security/confirm"
+  },
+  "from": "security@yourdomain.com",
+  "to": "user@example.com"
+}
+
+### 8. 发送错误通知
+POST {{worker_url}}
+Content-Type: application/json
+
+{
+  "template": "notification",
+  "templateData": {
+    "title": "支付失败",
+    "message": "很抱歉，您的支付处理失败。请检查您的支付信息后重试。",
+    "type": "error",
+    "actionText": "重新支付",
+    "actionUrl": "https://example.com/checkout"
+  },
+  "from": "noreply@yourdomain.com",
+  "to": "customer@example.com"
+}
