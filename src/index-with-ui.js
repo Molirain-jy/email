@@ -571,14 +571,38 @@ function handleHome(env) {
  */
 async function handleLogin(request, env) {
   try {
-    const { username, password } = await request.json();
+    // 解析请求体
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return jsonResponse({ error: '请求格式错误' }, 400);
+    }
+
+    const { username, password } = body;
+
+    if (!username || !password) {
+      return jsonResponse({ error: '用户名和密码不能为空' }, 400);
+    }
 
     // 从环境变量中获取账号信息（格式：username1:password1,username2:password2）
-    const accounts = env.ACCOUNTS || '';
+    // 支持 ADMIN_USERS 或 USERS 环境变量
+    const accounts = env.ADMIN_USERS || env.USERS || env.ACCOUNTS || '';
+    
+    if (!accounts) {
+      console.error('环境变量未配置: ADMIN_USERS, USERS 或 ACCOUNTS');
+      return jsonResponse({ error: '系统配置错误，请联系管理员配置用户账号' }, 500);
+    }
+
     const accountList = accounts.split(',').map(account => {
       const [user, pass] = account.split(':');
-      return { username: user.trim(), password: pass.trim() };
-    });
+      return { username: user?.trim(), password: pass?.trim() };
+    }).filter(acc => acc.username && acc.password);
+
+    if (accountList.length === 0) {
+      console.error('环境变量格式错误，无有效账号');
+      return jsonResponse({ error: '系统配置错误，账号格式不正确' }, 500);
+    }
 
     // 验证账号
     const account = accountList.find(
@@ -599,6 +623,7 @@ async function handleLogin(request, env) {
     });
 
   } catch (error) {
+    console.error('登录失败:', error);
     return jsonResponse({ error: '登录失败：' + error.message }, 500);
   }
 }

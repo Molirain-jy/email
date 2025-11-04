@@ -240,7 +240,7 @@ email/
 5. 点击"发送邮件"按钮
 
 ### 管理账号
-在 Cloudflare Dashboard 修改 `ADMIN_USERS` 环境变量：
+在 Cloudflare Dashboard 修改 `ADMIN_USERS` 或 `USERS` 环境变量：
 ```
 格式：用户名1:密码1,用户名2:密码2
 示例：admin:SecurePass123,sales:Sales2025,support:Support456
@@ -342,10 +342,12 @@ on:
 
 ### Q: 登录失败？
 **检查：**
-1. 环境变量 `ADMIN_USERS` 格式是否正确
-2. 密码中不要包含逗号或冒号
-3. 修改环境变量后需要 "Save and Deploy"
-4. 清除浏览器缓存
+1. 确认环境变量 `ADMIN_USERS` 或 `USERS` 是否已配置
+2. 环境变量格式是否正确：`username:password,username2:password2`
+3. 密码中不要包含逗号或冒号
+4. 修改环境变量后需要 "Save and Deploy"
+5. 清除浏览器缓存和 localStorage
+6. 检查浏览器控制台是否有详细错误信息
 
 ### Q: 收不到邮件？
 **排查步骤：**
@@ -407,7 +409,7 @@ curl -X POST https://your-worker.workers.dev/api/send \
 
 | 变量名 | 必需 | 说明 | 示例 |
 |--------|------|------|------|
-| `ADMIN_USERS` | ✅ | 用户账号列表 | `admin:Pass123,user:Pass456` |
+| `ADMIN_USERS` 或 `USERS` | ✅ | 用户账号列表 | `admin:Pass123,user:Pass456` |
 | `JWT_SECRET` | ✅ | JWT 加密密钥 | `random-secret-key-123` |
 
 ## 📄 许可证
