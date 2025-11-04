@@ -3,20 +3,67 @@ import { createMimeMessage } from "mimetext";
 
 export default {
   async fetch(request, env) {
+    // CORS 处理
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+      });
+    }
+
     // 只接受 POST 请求
     if (request.method !== "POST") {
       return new Response(
         JSON.stringify({ error: "只支持 POST 请求" }),
         {
           status: 405,
-          headers: { "Content-Type": "application/json" }
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
         }
       );
     }
 
     try {
+      // 验证 API Key
+      const authHeader = request.headers.get("Authorization");
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return new Response(
+          JSON.stringify({ 
+            error: "缺少 Authorization header，格式: Bearer YOUR_API_KEY" 
+          }),
+          {
+            status: 401,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          }
+        );
+      }
+
+      const apiKey = authHeader.substring(7); // 移除 "Bearer "
+      
+      // 验证 API Key（从环境变量读取）
+      if (apiKey !== env.API_KEY) {
+        return new Response(
+          JSON.stringify({ error: "无效的 API Key" }),
+          {
+            status: 401,
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          }
+        );
+      }
+
       // 解析请求体
-      const { from, to, subject, text, html } = await request.json();
+      const { from, to, subject, text, html, cc, bcc, replyTo } = await request.json();
 
       // 验证必需字段
       if (!from || !to || !subject) {
@@ -26,7 +73,10 @@ export default {
           }),
           {
             status: 400,
-            headers: { "Content-Type": "application/json" }
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
           }
         );
       }
@@ -42,18 +92,34 @@ export default {
       }
 
       // 解析收件人
-      if (Array.isArray(to)) {
-        to.forEach(recipient => {
-          if (typeof recipient === "string") {
-            msg.setRecipient(recipient);
-          } else {
-            msg.setRecipient({ name: recipient.name || "", addr: recipient.email });
-          }
-        });
-      } else if (typeof to === "string") {
-        msg.setRecipient(to);
-      } else {
-        msg.setRecipient({ name: to.name || "", addr: to.email });
+      const addRecipients = (recipients, method) => {
+        if (Array.isArray(recipients)) {
+          recipients.forEach(recipient => {
+            if (typeof recipient === "string") {
+              msg[method](recipient);
+            } else {
+              msg[method]({ name: recipient.name || "", addr: recipient.email });
+            }
+          });
+        } else if (typeof recipients === "string") {
+          msg[method](recipients);
+        } else if (recipients) {
+          msg[method]({ name: recipients.name || "", addr: recipients.email });
+        }
+      };
+
+      // 添加收件人、抄送、密送
+      addRecipients(to, 'setRecipient');
+      if (cc) addRecipients(cc, 'setCc');
+      if (bcc) addRecipients(bcc, 'setBcc');
+
+      // 设置回复地址
+      if (replyTo) {
+        if (typeof replyTo === "string") {
+          msg.setHeader('Reply-To', replyTo);
+        } else {
+          msg.setHeader('Reply-To', `${replyTo.name || ""} <${replyTo.email}>`);
+        }
       }
 
       // 设置主题
@@ -83,7 +149,10 @@ export default {
           }),
           {
             status: 400,
-            headers: { "Content-Type": "application/json" }
+            headers: { 
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
           }
         );
       }
@@ -103,14 +172,23 @@ export default {
       // 发送邮件
       await env.EMAIL_SENDER.send(message);
 
+      // 生成邮件 ID（类似 Resend）
+      const emailId = `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       return new Response(
         JSON.stringify({ 
-          success: true, 
-          message: "邮件发送成功" 
+          id: emailId,
+          from: senderEmail,
+          to: Array.isArray(to) ? to : [to],
+          subject: subject,
+          created_at: new Date().toISOString()
         }),
         {
           status: 200,
-          headers: { "Content-Type": "application/json" }
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
         }
       );
 
@@ -122,7 +200,10 @@ export default {
         }),
         {
           status: 500,
-          headers: { "Content-Type": "application/json" }
+          headers: { 
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
         }
       );
     }
