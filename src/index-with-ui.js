@@ -675,21 +675,28 @@ async function handleSendEmail(request, env) {
 
     const token = authHeader.substring(7);
     
-    // 验证 Token
-    try {
-      const decoded = atob(token);
-      const parts = decoded.split(':');
-      if (parts.length !== 3) {
+    // 验证 Token（支持两种方式）
+    // 方式1: API Key 直接认证（优先检查）
+    if (env.API_KEY && token === env.API_KEY) {
+      // API Key 验证通过，继续发送邮件
+    }
+    // 方式2: JWT Token 认证
+    else {
+      try {
+        const decoded = atob(token);
+        const parts = decoded.split(':');
+        if (parts.length !== 3) {
+          return jsonResponse({ error: 'Token 无效' }, 401);
+        }
+        
+        const timestamp = parseInt(parts[1]);
+        const now = Date.now();
+        if (now - timestamp >= 24 * 60 * 60 * 1000) {
+          return jsonResponse({ error: 'Token 已过期' }, 401);
+        }
+      } catch (e) {
         return jsonResponse({ error: 'Token 无效' }, 401);
       }
-      
-      const timestamp = parseInt(parts[1]);
-      const now = Date.now();
-      if (now - timestamp >= 24 * 60 * 60 * 1000) {
-        return jsonResponse({ error: 'Token 已过期' }, 401);
-      }
-    } catch (e) {
-      return jsonResponse({ error: 'Token 无效' }, 401);
     }
 
     // 解析请求体
