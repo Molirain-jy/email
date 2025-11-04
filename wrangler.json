@@ -3,6 +3,7 @@
   "name": "email-sender-worker",
   "main": "src/index-with-ui.js",
   "compatibility_date": "2025-11-04",
+  "compatibility_flags": ["nodejs_compat"],
   "send_email": [
     {
       "name": "EMAIL_SENDER"
