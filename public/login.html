@@ -1,10 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - 邮件系统</title>
+    <title>登录 - 邮件发送</title>
     <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --text-color-secondary: #a0a0a0;
+            --border-color: #333;
+            --accent-color: #ffffff;
+            --accent-text-color: #121212;
+            --error-bg: #c62828;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,83 +23,95 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            background-image: url('back.jpg');
+            background-size: cover;
+            background-position: center;
         }
 
         .login-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            background: rgba(26, 26, 26, 0.75);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
             width: 100%;
-            max-width: 400px;
-            padding: 40px;
+            max-width: 420px;
+            padding: 50px;
         }
 
         .logo {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
         }
 
         .logo-icon {
             font-size: 48px;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         h1 {
+            font-family: 'Georgia', serif;
             text-align: center;
-            color: #333;
-            font-size: 24px;
+            color: var(--text-color);
+            font-size: 26px;
+            font-weight: 400;
             margin-bottom: 30px;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         label {
             display: block;
-            color: #555;
-            margin-bottom: 8px;
+            color: var(--text-color-secondary);
+            margin-bottom: 10px;
             font-size: 14px;
             font-weight: 500;
         }
 
-        input {
+        input[type="text"],
+        input[type="password"] {
             width: 100%;
             padding: 12px 15px;
-            border: 2px solid #e1e8ed;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
             border-radius: 8px;
             font-size: 15px;
-            transition: border-color 0.3s;
+            transition: border-color 0.3s, box-shadow 0.3s;
         }
 
         input:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.1);
         }
 
         .login-btn {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--accent-color);
+            color: var(--accent-text-color);
             border: none;
             border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s ease;
+            margin-top: 10px;
         }
 
         .login-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .login-btn:active {
@@ -96,19 +119,21 @@
         }
 
         .login-btn:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
             transform: none;
+            box-shadow: none;
         }
 
         .error-message {
-            background: #fee;
-            color: #c33;
+            background: var(--error-bg);
+            color: var(--text-color);
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 20px;
             display: none;
             font-size: 14px;
+            text-align: center;
         }
 
         .error-message.show {
@@ -118,34 +143,36 @@
         .remember-me {
             display: flex;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .remember-me input[type="checkbox"] {
             width: auto;
-            margin-right: 8px;
+            margin-right: 10px;
+            accent-color: var(--accent-color);
         }
 
         .remember-me label {
             margin: 0;
             font-weight: normal;
             cursor: pointer;
+            color: var(--text-color-secondary);
         }
 
         .footer {
             text-align: center;
-            margin-top: 20px;
-            color: #888;
+            margin-top: 30px;
+            color: var(--text-color-secondary);
             font-size: 12px;
         }
 
         @media (max-width: 480px) {
             .login-container {
-                padding: 30px 20px;
+                padding: 30px 25px;
             }
 
             h1 {
-                font-size: 20px;
+                font-size: 22px;
             }
         }
     </style>
@@ -154,7 +181,7 @@
     <div class="login-container">
         <div class="logo">
             <div class="logo-icon">📧</div>
-            <h1>邮件系统登录</h1>
+            <h1>安全邮件服务</h1>
         </div>
 
         <div class="error-message" id="errorMessage"></div>
