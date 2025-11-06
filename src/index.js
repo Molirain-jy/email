@@ -10,8 +10,8 @@ export default {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key, X-Requested-With',
           'Access-Control-Max-Age': '86400', // 24小时缓存预检请求
         }
       });
@@ -41,7 +41,7 @@ function handleApiInfo() {
     version: '2.0',
     endpoints: {
       login: 'POST /api/login - 用户登录获取 Token',
-      send: 'POST /api/send - 发送邮件（支持 API Key 或 JWT Token）',
+      send: 'POST /api/send - 发送邮件（优先/仅支持 API Key）',
       verify: 'POST /api/verify - 验证 Token 有效性'
     },
     features: [
@@ -50,7 +50,7 @@ function handleApiInfo() {
       '✅ HTML 和纯文本内容',
       '✅ 自定义发件人名称',
       '✅ 回复地址设置',
-      '✅ API Key 和 JWT 双重认证'
+      '✅ API Key 认证（更安全）'
     ]
   });
 }
@@ -156,36 +156,28 @@ async function handleVerifyToken(request, env) {
  */
 async function handleSendEmail(request, env) {
   try {
-    // 验证 Authorization 头
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return jsonResponse({ error: '未授权' }, 401);
+    // 要求 JSON 请求
+    const contentType = request.headers.get('Content-Type') || '';
+    if (!contentType.toLowerCase().startsWith('application/json')) {
+      return jsonResponse({ error: '不支持的内容类型' }, 415);
     }
 
-    const token = authHeader.substring(7);
-    
-    // 验证 Token（支持两种方式）
-    // 方式1: API Key 直接认证（优先检查）
-    if (env.API_KEY && token === env.API_KEY) {
-      // API Key 验证通过，继续发送邮件
-    }
-    // 方式2: JWT Token 认证
-    else {
-      try {
-        const decoded = atob(token);
-        const parts = decoded.split(':');
-        if (parts.length !== 3) {
-          return jsonResponse({ error: 'Token 无效' }, 401);
-        }
-        
-        const timestamp = parseInt(parts[1]);
-        const now = Date.now();
-        if (now - timestamp >= 24 * 60 * 60 * 1000) {
-          return jsonResponse({ error: 'Token 已过期' }, 401);
-        }
-      } catch (e) {
-        return jsonResponse({ error: 'Token 无效' }, 401);
+    // 验证 Authorization 头
+    const authHeader = request.headers.get('Authorization') || '';
+    const apiKeyHeader = request.headers.get('X-API-Key') || '';
+
+    // 强制 API Key 认证：如果配置了 API_KEY，则仅接受 API Key
+    if (env.API_KEY) {
+      const bearer = authHeader.startsWith('Bearer ')
+        ? authHeader.substring(7)
+        : '';
+      const providedKey = apiKeyHeader || bearer;
+      if (!providedKey || providedKey !== env.API_KEY) {
+        return jsonResponse({ error: '未授权' }, 401);
       }
+    } else {
+      // 未配置 API_KEY 时，为避免被随意调用，禁用发送功能
+      return jsonResponse({ error: '服务未启用：请配置 API_KEY 后再试' }, 503);
     }
 
     // 解析请求体，支持多收件人、抄送、密送
@@ -202,6 +194,11 @@ async function handleSendEmail(request, env) {
       return jsonResponse({ 
         error: '必须提供邮件内容（text 或 html）' 
       }, 400);
+    }
+
+    // 基本字段长度限制（简单保护）
+    if (typeof subject === 'string' && subject.length > 200) {
+      return jsonResponse({ error: 'subject 过长' }, 400);
     }
 
     // 创建 MIME 消息
@@ -327,8 +324,8 @@ function jsonResponse(data, status = 200) {
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key, X-Requested-With',
     }
   });
 }
