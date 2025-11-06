@@ -8,5 +8,8 @@
     {
       "name": "EMAIL_SENDER"
     }
+  ],
+  "kv_namespaces": [
+    { "binding": "EMAIL_RATE_LIMIT", "id": "fcd8ce6a8d59432c80571d553d110e52" }
   ]
 }

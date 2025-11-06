@@ -7,3 +7,7 @@ ACCOUNTS=admin:Admin@2025,user:User@123
 
 # API Key（用于高级版本，可选）
 # API_KEY=sk_live_your_api_key_here
+
+# 限流（可选）
+# RATE_LIMIT_MAX=50
+# RATE_LIMIT_WINDOW=3600

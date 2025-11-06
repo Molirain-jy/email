@@ -2,7 +2,8 @@
 
 > 基于 Cloudflare Workers 与 Email Routing 的轻量级邮件发送服务（提供简洁 Web 界面与 REST API）
 
-- 用户认证（登录 Token）与 API Key 双模式
+- 用户认证（签名 Token）与 API Key 双模式
+ - 内置可选限流（KV 或开发环境内存兜底）
 - 支持 To/CC/BCC、HTML/纯文本、多收件人
 - 零维护、全球加速，免费额度友好
 
@@ -12,7 +13,7 @@
 
 - 后端 API：`/api/login`、`/api/send`、`/api/verify`
 - 鉴权方式：
-   - 登录 Token（调用 `/api/login` 获取，默认 24h 内有效）
+   - 登录签名 Token（HMAC-SHA256，调用 `/api/login` 获取，默认 24h 有效，需要 `TOKEN_SECRET`）
    - API Key（设置环境变量 `API_KEY`，直接随请求发送）
 - 前端页面：登录与发送界面（见 `public/` 或 `frontend-standalone/`）
 - 依赖 Cloudflare Email Routing 完成发件域名配置与投递
@@ -29,14 +30,14 @@
 提示：发件人需为已在 Email Routing 中配置/验证的域名邮箱，例如 `noreply@yourdomain.com`。
 
 ### 2) API（PowerShell 示例）
-方式 A：使用登录 Token（先登录获取，再发送）
+方式 A：使用登录签名 Token（先登录获取，再发送）
 ```powershell
 $body = @{ username = "admin"; password = "your_password" } | ConvertTo-Json
 Invoke-RestMethod -Uri "https://你的-worker.workers.dev/api/login" -Method Post -Body $body -ContentType "application/json"
 ```
 使用 Token 发送邮件：
 ```powershell
-$headers = @{ "Content-Type" = "application/json"; "Authorization" = "Bearer <JWT_TOKEN>" }
+$headers = @{ "Content-Type" = "application/json"; "Authorization" = "Bearer <SIGNED_TOKEN>" }
 $body = @{
   from = "noreply@yourdomain.com"
   to   = "user@example.com"
@@ -89,12 +90,38 @@ Invoke-RestMethod -Uri "https://你的-worker.workers.dev" -Method Post -Body $b
    ```
 2. 在 Cloudflare Dashboard → Workers & Pages → 你的 Worker → Settings → Variables 添加环境变量：
    - `ADMIN_USERS`：示例 `admin:Pass123,user:Pass456`
+   - `TOKEN_SECRET`：用于签名 Token 的密钥（建议 ≥ 32 字符）
    - `API_KEY`（可选）：启用 API Key 直连调用时使用，例如 `your_api_key_value`
 3. 部署：
    ```powershell
    npm run deploy
    ```
 4. 在你的域名下启用 Email Routing 并完成收/发件地址验证。
+
+可选：启用限流（推荐，生产环境）
+
+1) 创建并绑定 KV 命名空间（名称建议：EMAIL_RATE_LIMIT）
+
+   可通过 Dashboard 或命令行创建（命令行示例）：
+   ```powershell
+   # 创建 KV 命名空间
+   npx wrangler kv:namespace create EMAIL_RATE_LIMIT
+   # 记录输出的 id（生产环境）与 preview_id（开发环境）
+   ```
+
+2) 在 wrangler.json 中添加 kv_namespaces 绑定：
+
+   ```json
+   {
+     "kv_namespaces": [
+       { "binding": "EMAIL_RATE_LIMIT", "id": "<your_kv_id>", "preview_id": "<your_kv_preview_id>" }
+     ]
+   }
+   ```
+
+3)（可选）自定义速率：
+   - `RATE_LIMIT_MAX`（默认 100）每窗口允许的最大发信次数
+   - `RATE_LIMIT_WINDOW`（默认 3600，单位秒）窗口大小
 
 ### 方式 B：Dashboard 手动部署
 1. Dashboard → Workers & Pages → Create Application → Create Worker
@@ -106,12 +133,15 @@ Invoke-RestMethod -Uri "https://你的-worker.workers.dev" -Method Post -Body $b
 
 ## 四、必要环境变量
 
-| 名称        | 说明                         | 示例                                      |
-|-------------|------------------------------|-------------------------------------------|
-| ADMIN_USERS | 登录账号（逗号分隔）           | `admin:Pass123,user:Pass456`              |
-| API_KEY     | 可选，用于启用 API Key 调用     | `your_api_key_value`                      |
+| 名称         | 说明                                | 示例                                      |
+|--------------|-------------------------------------|-------------------------------------------|
+| ADMIN_USERS  | 登录账号（逗号分隔）                  | `admin:Pass123,user:Pass456`              |
+| TOKEN_SECRET | 签名 Token 的密钥（HMAC-SHA256）      | `random-secret-key-2025-xxxxxxxxxxxxxxxx` |
+| API_KEY      | 可选，用于启用 API Key 直连调用        | `your_api_key_value`                      |
+| RATE_LIMIT_MAX | 可选，限流窗口内的最大发信次数         | `100`                                     |
+| RATE_LIMIT_WINDOW | 可选，限流窗口大小（秒）            | `3600`                                    |
 
-说明：当前默认实现使用“登录 Token”（简单 Base64 Token），并未使用 JWT。若需要无登录的后端调用，可设置 `API_KEY` 并按上文示例携带。
+说明：当前默认实现使用“签名 Token”（HMAC-SHA256，非 JWT），也兼容 API Key 调用。
 
 至少提供其一的邮件内容字段：`text` 或 `html`。
 
@@ -123,7 +153,10 @@ Invoke-RestMethod -Uri "https://你的-worker.workers.dev" -Method Post -Body $b
 npm install
 # 可选：根目录创建 .dev.vars（本地开发变量）
 # ADMIN_USERS=admin:test
+# TOKEN_SECRET=local-secret-xxxx
 # API_KEY=local-api-key-xxxx
+# RATE_LIMIT_MAX=50
+# RATE_LIMIT_WINDOW=3600
 npm run dev
 # 打开 http://localhost:8787/login
 ```

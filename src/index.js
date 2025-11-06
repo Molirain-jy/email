@@ -1,6 +1,9 @@
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
 
+// 内存兜底（仅用于无 KV 绑定时的开发场景；生产请绑定 KV）
+const memoryRateStore = new Map();
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -41,7 +44,7 @@ function handleApiInfo() {
     version: '2.0',
     endpoints: {
       login: 'POST /api/login - 用户登录获取 Token',
-      send: 'POST /api/send - 发送邮件（优先/仅支持 API Key）',
+      send: 'POST /api/send - 发送邮件（支持 API Key 或签名 Token）',
       verify: 'POST /api/verify - 验证 Token 有效性'
     },
     features: [
@@ -50,7 +53,7 @@ function handleApiInfo() {
       '✅ HTML 和纯文本内容',
       '✅ 自定义发件人名称',
       '✅ 回复地址设置',
-      '✅ API Key 认证（更安全）'
+      '✅ API Key 或 HMAC 签名 Token（更安全）'
     ]
   });
 }
@@ -102,8 +105,16 @@ async function handleLogin(request, env) {
       return jsonResponse({ error: '用户名或密码错误' }, 401);
     }
 
-    // 生成简单的 Token（生产环境建议使用 JWT）
-    const token = btoa(`${username}:${Date.now()}:${Math.random()}`);
+    // 生成签名 Token（HMAC-SHA256），默认 24 小时有效
+    if (!env.TOKEN_SECRET) {
+      console.error('未配置 TOKEN_SECRET，无法签发安全 Token');
+      return jsonResponse({ error: '系统配置错误：未配置 TOKEN_SECRET' }, 500);
+    }
+
+    const token = await createSignedToken({
+      sub: username,
+      ttlSeconds: 24 * 60 * 60
+    }, env.TOKEN_SECRET);
 
     return jsonResponse({
       success: true,
@@ -128,23 +139,16 @@ async function handleVerifyToken(request, env) {
       return jsonResponse({ error: 'Token 缺失' }, 401);
     }
 
-    // 简单验证（生产环境建议使用 JWT 验证）
-    try {
-      const decoded = atob(token);
-      const parts = decoded.split(':');
-      if (parts.length === 3) {
-        const timestamp = parseInt(parts[1]);
-        const now = Date.now();
-        // Token 有效期 24 小时
-        if (now - timestamp < 24 * 60 * 60 * 1000) {
-          return jsonResponse({ success: true });
-        }
-      }
-    } catch (e) {
-      return jsonResponse({ error: 'Token 无效' }, 401);
+    if (!env.TOKEN_SECRET) {
+      return jsonResponse({ error: '系统未配置 TOKEN_SECRET' }, 500);
     }
 
-    return jsonResponse({ error: 'Token 已过期' }, 401);
+    const verified = await verifySignedToken(token, env.TOKEN_SECRET);
+    if (verified.valid) {
+      return jsonResponse({ success: true, sub: verified.payload.sub, exp: verified.payload.exp });
+    }
+
+    return jsonResponse({ error: verified.error || 'Token 无效' }, 401);
 
   } catch (error) {
     return jsonResponse({ error: '验证失败' }, 500);
@@ -166,18 +170,40 @@ async function handleSendEmail(request, env) {
     const authHeader = request.headers.get('Authorization') || '';
     const apiKeyHeader = request.headers.get('X-API-Key') || '';
 
-    // 强制 API Key 认证：如果配置了 API_KEY，则仅接受 API Key
+    const bearer = authHeader.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : '';
+
+  let authorized = false;
+
+    // 1) API Key 验证（如配置）
     if (env.API_KEY) {
-      const bearer = authHeader.startsWith('Bearer ')
-        ? authHeader.substring(7)
-        : '';
-      const providedKey = apiKeyHeader || bearer;
-      if (!providedKey || providedKey !== env.API_KEY) {
-        return jsonResponse({ error: '未授权' }, 401);
+      if ((apiKeyHeader && apiKeyHeader === env.API_KEY) || (bearer && bearer === env.API_KEY)) {
+        authorized = true;
       }
-    } else {
-      // 未配置 API_KEY 时，为避免被随意调用，禁用发送功能
-      return jsonResponse({ error: '服务未启用：请配置 API_KEY 后再试' }, 503);
+    }
+
+    // 2) 签名 Token 验证（如提供并配置了 TOKEN_SECRET）
+    if (!authorized && env.TOKEN_SECRET && bearer) {
+      const verified = await verifySignedToken(bearer, env.TOKEN_SECRET);
+      if (verified.valid) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      return jsonResponse({ error: '未授权' }, 401);
+    }
+
+    // 速率限制（优先使用 KV；无 KV 时使用内存兜底，仅适合开发）
+    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const rlMax = Number.parseInt(env.RATE_LIMIT_MAX || '100');
+    const rlWindow = Number.parseInt(env.RATE_LIMIT_WINDOW || '3600');
+    const rlKey = `rate:send:${clientIP}`;
+
+    const allowed = await checkRateLimit(env, rlKey, rlMax, rlWindow);
+    if (!allowed) {
+      return jsonResponse({ error: '请求过于频繁，请稍后再试' }, 429);
     }
 
     // 解析请求体，支持多收件人、抄送、密送
@@ -328,4 +354,128 @@ function jsonResponse(data, status = 200) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key, X-Requested-With',
     }
   });
+}
+
+/**
+ * 签名 Token 工具（HMAC-SHA256）
+ * Token 结构：base64url(payloadJSON).base64url(signature)
+ * payload: { sub, iat, exp }
+ */
+async function createSignedToken({ sub, ttlSeconds = 86400 }, secret) {
+  const nowSec = Math.floor(Date.now() / 1000);
+  const payload = { sub, iat: nowSec, exp: nowSec + ttlSeconds };
+  const payloadStr = JSON.stringify(payload);
+  const payloadB64 = base64urlEncode(new TextEncoder().encode(payloadStr));
+  const sigB64 = await hmacSignToBase64Url(payloadB64, secret);
+  return `${payloadB64}.${sigB64}`;
+}
+
+async function verifySignedToken(token, secret) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) {
+      return { valid: false, error: 'Token 结构无效' };
+    }
+    const [payloadB64, sigB64] = parts;
+    const ok = await hmacVerifyFromBase64Url(payloadB64, sigB64, secret);
+    if (!ok) return { valid: false, error: '签名校验失败' };
+    const payloadJson = new TextDecoder().decode(base64urlDecodeToBytes(payloadB64));
+    const payload = JSON.parse(payloadJson);
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== 'number' || nowSec >= payload.exp) {
+      return { valid: false, error: 'Token 已过期' };
+    }
+    return { valid: true, payload };
+  } catch (e) {
+    return { valid: false, error: 'Token 解析失败' };
+  }
+}
+
+async function importHmacKey(secret) {
+  const keyData = new TextEncoder().encode(secret);
+  return await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify']
+  );
+}
+
+/**
+ * 速率限制：使用 KV（优先）或内存兜底
+ */
+async function checkRateLimit(env, key, maxRequests, windowSeconds) {
+  // KV 存储分支
+  const kv = env.EMAIL_RATE_LIMIT;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const windowStart = nowSec - windowSeconds;
+
+  try {
+    if (kv && kv.get && kv.put) {
+      const raw = await kv.get(key);
+      let count = 0;
+      let lastReset = nowSec;
+      if (raw) {
+        const data = JSON.parse(raw);
+        count = data.count || 0;
+        lastReset = data.lastReset || nowSec;
+        if (lastReset < windowStart) {
+          count = 0;
+          lastReset = nowSec;
+        }
+      }
+      if (count >= maxRequests) return false;
+      count += 1;
+      await kv.put(key, JSON.stringify({ count, lastReset }), { expirationTtl: windowSeconds });
+      return true;
+    }
+  } catch (e) {
+    // KV 异常时回退到内存
+  }
+
+  // 内存兜底（仅适合开发；多实例/重启会丢失）
+  const record = memoryRateStore.get(key) || { count: 0, lastReset: nowSec };
+  if (record.lastReset < windowStart) {
+    record.count = 0;
+    record.lastReset = nowSec;
+  }
+  if (record.count >= maxRequests) return false;
+  record.count += 1;
+  memoryRateStore.set(key, record);
+  return true;
+}
+
+async function hmacSignToBase64Url(messageStr, secret) {
+  const key = await importHmacKey(secret);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(messageStr));
+  return base64urlEncode(new Uint8Array(sig));
+}
+
+async function hmacVerifyFromBase64Url(messageStr, sigB64, secret) {
+  try {
+    const key = await importHmacKey(secret);
+    const sigBytes = base64urlDecodeToBytes(sigB64);
+    const ok = await crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(messageStr));
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function base64urlEncode(bytes) {
+  let binary = '';
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64urlDecodeToBytes(b64url) {
+  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b64.length % 4;
+  if (pad) b64 += '='.repeat(4 - pad);
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
