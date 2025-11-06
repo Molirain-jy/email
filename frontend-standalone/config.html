@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配置 - 邮件发送</title>
+    
+    <!-- 自定义样式 -->
+    <link rel="stylesheet" href="css/config.css">
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ API 配置</h1>
+        <p class="subtitle">配置后端 API 地址，实现前后端分离</p>
+
+        <div class="current-config" id="currentConfig">
+            <h3>当前配置</h3>
+            <p>API 地址: <span class="value" id="currentApiUrl">未配置</span></p>
+            <p>状态: <span class="value" id="configStatus">等待配置</span></p>
+        </div>
+
+        <form id="configForm">
+            <div class="form-group">
+                <label for="apiUrl">后端 API 地址 *</label>
+                <input 
+                    type="url" 
+                    id="apiUrl" 
+                    placeholder="https://email-sender-api.your-subdomain.workers.dev"
+                    required
+                >
+                <div class="help-text">
+                    输入你部署的纯 API Worker 地址（使用 wrangler-api.json 部署）
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button type="submit" class="btn-save">保存配置</button>
+                <button type="button" class="btn-test" id="testBtn">测试连接</button>
+            </div>
+        </form>
+
+        <div id="status" class="status"></div>
+
+        <div style="margin-top: 30px; text-align: center;">
+            <a href="login.html" style="color: #4fc3f7; text-decoration: none;">← 返回登录</a>
+        </div>
+    </div>
+
+    <!-- 自定义脚本 -->
+    <script src="js/config.js"></script>
+</body>
+</html>

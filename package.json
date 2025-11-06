@@ -5,7 +5,11 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev:ui": "wrangler dev --config wrangler.json",
+    "dev:api": "wrangler dev --config wrangler-api.json",
+    "deploy": "wrangler deploy",
+    "deploy:ui": "wrangler deploy --config wrangler.json",
+    "deploy:api": "wrangler deploy --config wrangler-api.json"
   },
   "keywords": [
     "cloudflare",
